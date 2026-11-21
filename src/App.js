@@ -6,7 +6,7 @@ function ImageSlider({ images, title }) {
 
   if (!images || images.length === 0 || images[0] === "") {
     return (
-      <div style={{ width: '100%', height: '190px', backgroundColor: '#e2e8f0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '13px', fontWeight: '500' }}>
+      <div style={{ width: '100%', height: '190px', backgroundColor: '#f2e9f5', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '13px', fontWeight: '500' }}>
         No Image Available
       </div>
     );
@@ -45,6 +45,17 @@ function ImageSlider({ images, title }) {
 function App() {
   const [activeTab, setActiveTab] = useState('home'); // 'home', 'about', 'contact'
   const [houses, setHouses] = useState([]);
+const [selectedHouseDetail, setSelectedHouseDetail] = useState(null);
+  
+  // ...
+
+
+
+  const [selectedProperty, setSelectedProperty] = useState(null);
+
+const handleViewDetail = (house) => {
+  setSelectedHouseDetail(house);
+};
 
 const [contactEmail, setContactEmail] = useState('');
   const [contactTelegram, setContactTelegram] = useState('');
@@ -82,32 +93,148 @@ const [contactEmail, setContactEmail] = useState('');
   const [userMessages, setUserMessages] = useState([]);
 
   // የተጠቃሚውን መልእክቶች ከ backend የሚያመጣ ፋንክሽን
-  const fetchUserMessages = (email) => {
+const fetchUserMessages = (email) => {
     if (!email) return;
-    fetch(`http://localhost:8080/house-backend/get_user_messages.php?email=${email}`)
+    
+    const cleanEmail = email.trim().toLowerCase();
+    
+    fetch('http://localhost:8080/house-backend/get_user_messages.php')
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
-          setUserMessages(data);
+          // 100% ሎግኢን ካደረገው ተጠቃሚ ኢሜይል ጋር ብቻ የሚመሳሰሉትን መምረጥ 
+          const filtered = data.filter(msg => {
+            const sender = (msg.sender_email || '').trim().toLowerCase();
+            return sender === cleanEmail || sender.includes(cleanEmail);
+          });
+          setUserMessages(filtered);
         }
       })
       .catch(err => console.error('Error fetching user messages:', err));
   };
-
-
-  // Edit House
   const [editingHouse, setEditingHouse] = useState(null);
   const [editTitle, setEditTitle] = useState('');
   const [editLocation, setEditLocation] = useState('');
   const [editPrice, setEditPrice] = useState('');
   const [editBedrooms, setEditBedrooms] = useState(1);
 const [selectedImage, setSelectedImage] = useState(null);
+
+
+
+
+
+// Payment & Deposit States
+  const [payments, setPayments] = useState([]);
+  const [paymentModalHouse, setPaymentModalHouse] = useState(null);
+  const [payTenantName, setPayTenantName] = useState('');
+  const [payTenantEmail, setPayTenantEmail] = useState('');
+  const [payAmount, setPayAmount] = useState('');
+  const [payMethod, setPayMethod] = useState('CBE');
+  const [payRef, setPayRef] = useState('');
+  const [payReceiptFile, setPayReceiptFile] = useState(null);
+
+  const fetchPayments = () => {
+    fetch('http://localhost:8080/house-backend/manage_payments.php')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.success && Array.isArray(data.payments)) {
+          setPayments(data.payments);
+        }
+      })
+      .catch(err => console.error('Error fetching payments:', err));
+  };
+
+  const openPaymentModal = (house, e) => {
+    if (e) e.stopPropagation();
+    const housePrice = parseFloat(house.price || house.Price || 0);
+    setPaymentModalHouse(house);
+    setPayTenantName(user ? user.name : '');
+    setPayTenantEmail(user ? user.email : '');
+    setPayAmount(housePrice ? String(housePrice) : '');
+    setPayMethod('CBE');
+    setPayRef('');
+    setPayReceiptFile(null);
+  };
+
+  const handlePaymentSubmit = (e) => {
+    e.preventDefault();
+    if (!paymentModalHouse) return;
+    const houseId = paymentModalHouse.id || paymentModalHouse.Id;
+
+    const formData = new FormData();
+    formData.append('house_id', houseId);
+    formData.append('tenant_name', payTenantName);
+    formData.append('tenant_email', payTenantEmail);
+    formData.append('amount', payAmount);
+    formData.append('payment_method', payMethod);
+    formData.append('transaction_ref', payRef);
+    if (payReceiptFile) {
+      formData.append('receipt_image', payReceiptFile);
+    }
+
+    fetch('http://localhost:8080/house-backend/submit_payment.php', {
+      method: 'POST',
+      body: formData
+    })
+      .then(res => res.json())
+      .then(data => {
+        alert(data.message || 'Payment submitted!');
+        if (data.success) {
+          setPaymentModalHouse(null);
+          fetchPayments();
+        }
+      })
+      .catch(err => {
+        console.error('Payment Submit Error:', err);
+        alert('Error submitting payment.');
+      });
+  };
+
+  const handlePaymentAction = (paymentId, action) => {
+    fetch('http://localhost:8080/house-backend/manage_payments.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payment_id: paymentId, action })
+    })
+      .then(res => res.json())
+      .then(data => {
+        alert(data.message || `Payment ${action}`);
+        fetchPayments();
+        fetchHouses();
+      })
+      .catch(err => console.error('Payment Action Error:', err));
+  };
+
+
+
+
+
+
+
+
+
+
+
+
+
   const fetchHouses = () => {
     fetch('http://localhost:8080/house-backend/get_houses.php')
       .then(res => res.json())
       .then(data => setHouses(Array.isArray(data) ? data : []))
       .catch(err => console.error('Error fetching houses:', err));
   };
+
+
+const [woreda, setWoreda] = useState('');
+const [kebele, setKebele] = useState('');
+const [phone, setPhone] = useState('');
+const [description, setDescription] = useState('');
+
+
+
+
+
+
 
  const fetchMessages = () => {
     if (user && user.role === 'admin') {
@@ -136,15 +263,18 @@ const [selectedImage, setSelectedImage] = useState(null);
   };
 
 
-
-
- useEffect(() => {
+useEffect(() => {
     fetchHouses();
     fetchMessages();
-    if (user && user.email) {
+    fetchPayments();
+    // ተጠቃሚው ሎግኢን አድርጎ ሲገባ የኢሜይሉን ትክክለኛነት ማረጋገጥ
+    const storedUser = JSON.parse(localStorage.getItem('user'));
+    if (storedUser && storedUser.email) {
+      fetchUserMessages(storedUser.email);
+    } else if (user && user.email) {
       fetchUserMessages(user.email);
     }
-  }, [user]);
+  }, [user]); // Component እንደተከፈተ ወዲያውኑ እንዲሰራ
   const handleAuthSubmit = (e) => {
     e.preventDefault();
     const url = isRegisterMode 
@@ -202,23 +332,40 @@ const [selectedImage, setSelectedImage] = useState(null);
 const handleContactSubmit = (e) => {
     e.preventDefault();
     
-    if (window.confirm("are you sure send message?")) {
+    // ሎግኢን አድርጎ ከሆነ የራሱን ኢሜይል እና ስም በራስ ሰር መጠቀም
+    const finalEmail = (user && user.email) ? user.email : contactEmail;
+    const finalName = (user && user.name) ? user.name : 'Contact Visitor';
+    const finalRole = (user && user.role) ? user.role : 'guest';
+
+    if (!finalEmail || !contactMessage) {
+      alert("Please fill in email and message fields!");
+      return;
+    }
+
+    if (window.confirm("Are you sure you want to send this message?")) {
+      const formData = new URLSearchParams();
+      formData.append('sender_name', finalName);
+      formData.append('sender_email', finalEmail);
+      formData.append('sender_role', finalRole);
+      formData.append('message', `Telegram: ${contactTelegram}\nMessage: ${contactMessage}`);
+
       fetch('http://localhost:8080/house-backend/send_message.php', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email: contactEmail, 
-          telegram: contactTelegram, 
-          message: contactMessage 
-        })
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData.toString()
       })
       .then(res => res.json())
       .then(data => {
         if (data.status === 'success') {
-          alert('Messages send successfuly  !');
+          alert('Message sent successfully!');
           setContactEmail('');
           setContactTelegram('');
           setContactMessage('');
+          
+          // መልእክቱ እንደተላከ ወዲያውኑ የቴናንቱን መልእክቶች ማደስ
+          if (user && user.email) {
+            fetchUserMessages(user.email);
+          }
         } else {
           alert(data.message);
         }
@@ -226,7 +373,6 @@ const handleContactSubmit = (e) => {
       .catch(err => console.error('Error:', err));
     }
   };
-
 
 
 
@@ -270,6 +416,11 @@ const handleContactSubmit = (e) => {
     formData.append('price', editPrice);
     formData.append('bedrooms', editBedrooms);
 
+    formData.append('woreda', woreda);
+formData.append('kebele', kebele);
+formData.append('phone', phone);
+formData.append('description', description);
+
     const fileInput = e.target.elements['editImages'];
     if (fileInput && fileInput.files.length > 0) {
       for (let i = 0; i < fileInput.files.length; i++) {
@@ -295,8 +446,13 @@ const handleContactSubmit = (e) => {
     setFavorites(prev => prev.includes(houseId) ? prev.filter(id => id !== houseId) : [...prev, houseId]);
   };
 
-  const handleSendMessage = (e) => {
+ const handleSendMessage = (e) => {
     e.preventDefault();
+    if (!msgText.trim()) {
+      alert("Please enter a message!");
+      return;
+    }
+
     const formData = new URLSearchParams();
     formData.append('sender_name', user ? user.name : 'Guest Visitor');
     formData.append('sender_email', user ? user.email : 'guest@portal.com');
@@ -312,10 +468,12 @@ const handleContactSubmit = (e) => {
     .then(data => {
       alert(data.message || 'Message sent successfully!');
       setMsgText('');
+      if (user && user.email) {
+        fetchUserMessages(user.email); // መልእክቱ ከተላከ በኋላ ወዲያውኑ እንዲመጣ ለማድረግ
+      }
     })
     .catch(err => console.error('Message Error:', err));
   };
-
   const handleReplySubmit = (msgId) => {
     const formData = new URLSearchParams();
     formData.append('id', msgId);
@@ -358,8 +516,8 @@ const handleContactSubmit = (e) => {
   const theme = {
     bg: darkMode ? '#121212' : '#f8f9fa',
     cardBg: darkMode ? '#1e1e1e' : '#ffffff',
-    text: darkMode ? '#f1f1f1' : '#1e293b',
-    subText: darkMode ? '#a1a1aa' : '#64748b',
+    text: darkMode ? '#0f0101' : '#1e293b',
+    subText: darkMode ? '#1313ce' : '#64748b',
     headerBg: darkMode ? '#1a1a1a' : '#0f172a',
     border: darkMode ? '#27272a' : '#e2e8f0'
   };
@@ -370,7 +528,7 @@ const handleContactSubmit = (e) => {
     <div className="fade-in" style={{ fontFamily: "'Inter', sans-serif", backgroundColor: theme.bg, color: theme.text, minHeight: '100vh', paddingBottom: '60px' }}>
       
       {/* Navbar with Menu Items */}
-      <nav style={{ backgroundColor: theme.headerBg, color: '#fff', padding: '16px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+      <nav style={{ backgroundColor: theme.headerBg, color: '#f5e9e9', padding: '16px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }} onClick={() => setActiveTab('home')}>
           <span style={{ fontSize: '26px' }}>🏡</span>
           <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '700', letterSpacing: '0.5px' }}>House Rental Website</h2>
@@ -430,7 +588,7 @@ const handleContactSubmit = (e) => {
           <div>
             {/* Admin Pending Approvals */}
             {user && user.role === 'admin' && pendingHouses.length > 0 && (
-              <div style={{ backgroundColor: '#fef3c7', border: '1px solid #f59e0b', borderRadius: '12px', padding: '20px', marginBottom: '30px' }}>
+              <div style={{ backgroundColor: '#020303', border: '1px solid #d11c76', borderRadius: '12px', padding: '20px', marginBottom: '30px' }}>
                 <h3 style={{ margin: '0 0 15px', color: '#92400e', fontSize: '18px' }}>⏳ Pending Admin Approvals ({pendingHouses.length})</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '15px' }}>
                   {pendingHouses.map(house => {
@@ -442,14 +600,52 @@ const handleContactSubmit = (e) => {
                       <div key={houseId} style={{ backgroundColor: '#fff', color: '#000', padding: '12px', borderRadius: '8px', border: '1px solid #fcd34d' }}>
                         <h4 style={{ margin: '0 0 5px', fontSize: '15px' }}>{title}</h4>
                         <p style={{ margin: '0 0 5px', fontSize: '12px', color: '#666' }}>📍 {location} | 💵 ${price}</p>
-                        <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
-                          <button onClick={() => handleApproveAction(houseId, 'approve')} style={{ flex: 1, backgroundColor: '#10b981', color: '#fff', border: 'none', padding: '6px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
-                            ✓ Approve
+   <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+       <button onClick={() => handleApproveAction(houseId, 'approve')} style={{ flex: 1, backgroundColor: '#10b981', color: '#fff', border: 'none', padding: '6px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
+              ✓ Approve
+         </button>
+  <button onClick={(e) => openEditModal(house, e)} style={{ backgroundColor: '#189181', color: '#d5e4db', border: 'none', padding: '6px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
+                            Edit   
                           </button>
-                          <button onClick={(e) => openEditModal(house, e)} style={{ backgroundColor: '#f59e0b', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
-                            Edit
-                          </button>
-                          <button onClick={() => handleApproveAction(houseId, 'reject')} style={{ flex: 1, backgroundColor: '#ef4444', color: '#fff', border: 'none', padding: '6px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
+
+<button 
+  onClick={() => handleViewDetail(house)} 
+  style={{ 
+    backgroundColor: '#007bff', 
+    color: 'white', 
+    padding: '6px 10px', 
+    border: 'none', 
+    borderRadius: '4px', 
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: '12px',
+    marginLeft: '5px'
+  }}
+>
+  Detail
+</button>
+
+{/* 👇 ይህንን ቁልፍ እዚህ (በ filteredHouses.map ውስጥ) ጨምሪ 👇 */}
+<button
+  onClick={(e) => openPaymentModal(house, e)}
+  style={{
+    backgroundColor: '#10b981',
+    color: 'white',
+    padding: '6px 10px',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: '12px',
+    marginLeft: '5px'
+  }}
+>
+  💳 Pay
+</button>
+
+
+
+  <button onClick={() => handleApproveAction(houseId, 'reject')} style={{ flex: 1, backgroundColor: '#ef4444', color: '#fff', border: 'none', padding: '6px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>
                             ✕ Reject
                           </button>
                         </div>
@@ -486,6 +682,113 @@ const handleContactSubmit = (e) => {
                             </button>
                           </div>
                         )}
+
+
+{/* Admin Deposit & Payments Verification */}
+            {user && user.role === 'admin' && (
+              <div style={{ backgroundColor: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: '12px', padding: '20px', marginBottom: '30px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+                  <h3 style={{ margin: 0, fontSize: '18px' }}>💰 Admin Deposit & Payment Verification ({payments.length})</h3>
+                  <div style={{ backgroundColor: '#ecfdf5', border: '1px solid #10b981', color: '#065f46', padding: '10px 16px', borderRadius: '10px', fontWeight: 'bold', fontSize: '15px' }}>
+                    Total Verified Deposit: $
+                    {payments
+                      .filter(p => p.status === 'Verified')
+                      .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0)
+                      .toFixed(2)}
+                  </div>
+                </div>
+
+                {payments.length > 0 ? (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: theme.bg, textAlign: 'left' }}>
+                          <th style={{ padding: '10px', borderBottom: `1px solid ${theme.border}` }}>Tenant</th>
+                          <th style={{ padding: '10px', borderBottom: `1px solid ${theme.border}` }}>House</th>
+                          <th style={{ padding: '10px', borderBottom: `1px solid ${theme.border}` }}>Amount</th>
+                          <th style={{ padding: '10px', borderBottom: `1px solid ${theme.border}` }}>Method & Ref</th>
+                          <th style={{ padding: '10px', borderBottom: `1px solid ${theme.border}` }}>Receipt</th>
+                          <th style={{ padding: '10px', borderBottom: `1px solid ${theme.border}` }}>Status</th>
+                          <th style={{ padding: '10px', borderBottom: `1px solid ${theme.border}` }}>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {payments.map(p => (
+                          <tr key={p.id}>
+                            <td style={{ padding: '10px', borderBottom: `1px solid ${theme.border}` }}>
+                              <b>{p.tenant_name}</b><br />
+                              <span style={{ color: theme.subText, fontSize: '12px' }}>{p.tenant_email}</span>
+                            </td>
+                            <td style={{ padding: '10px', borderBottom: `1px solid ${theme.border}` }}>
+                              {p.house_title || `House #${p.house_id}`}
+                            </td>
+                            <td style={{ padding: '10px', borderBottom: `1px solid ${theme.border}`, fontWeight: 'bold', color: '#10b981' }}>
+                              ${parseFloat(p.amount || 0).toFixed(2)}
+                            </td>
+                            <td style={{ padding: '10px', borderBottom: `1px solid ${theme.border}` }}>
+                              {p.payment_method}<br />
+                              <span style={{ fontSize: '12px', color: theme.subText }}>Ref: {p.transaction_ref}</span>
+                            </td>
+                            <td style={{ padding: '10px', borderBottom: `1px solid ${theme.border}` }}>
+                              {p.receipt_image ? (
+                                <a
+                                  href={`http://localhost:8080/house-backend/${p.receipt_image}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  style={{ color: '#2563eb', fontWeight: 'bold', textDecoration: 'none' }}
+                                >
+                                  📄 View Receipt
+                                </a>
+                              ) : (
+                                <span style={{ color: theme.subText }}>No file</span>
+                              )}
+                            </td>
+                            <td style={{ padding: '10px', borderBottom: `1px solid ${theme.border}` }}>
+                              <span style={{
+                                padding: '3px 8px',
+                                borderRadius: '10px',
+                                fontWeight: 'bold',
+                                fontSize: '11px',
+                                backgroundColor: p.status === 'Verified' ? '#dcfce7' : p.status === 'Rejected' ? '#fee2e2' : '#fef3c7',
+                                color: p.status === 'Verified' ? '#166534' : p.status === 'Rejected' ? '#991b1b' : '#92400e'
+                              }}>
+                                {p.status}
+                              </span>
+                            </td>
+                            <td style={{ padding: '10px', borderBottom: `1px solid ${theme.border}` }}>
+                              <div style={{ display: 'flex', gap: '6px' }}>
+                                <button
+                                  onClick={() => handlePaymentAction(p.id, 'Verified')}
+                                  style={{ backgroundColor: '#10b981', color: '#fff', border: 'none', padding: '5px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
+                                >
+                                  ✓ Verify
+                                </button>
+                                <button
+                                  onClick={() => handlePaymentAction(p.id, 'Rejected')}
+                                  style={{ backgroundColor: '#ef4444', color: '#fff', border: 'none', padding: '5px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
+                                >
+                                  ✕ Reject
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p style={{ color: theme.subText, fontSize: '13px', margin: 0 }}>No payments submitted yet.</p>
+                )}
+              </div>
+            )}
+
+
+
+
+
+
+
+
 
     {/* አጠቃላይ መልእክቱን ከነካርዱ ሙሉ በሙሉ የሚያጠፋው ቁልፍ */}
                     <div style={{ marginTop: '10px', textAlign: 'right' }}>
@@ -575,27 +878,40 @@ const handleContactSubmit = (e) => {
                   <h3 style={{ marginTop: 0, fontSize: '18px', borderBottom: `2px solid ${theme.border}`, paddingBottom: '12px' }}>➕ List a Property</h3>
                   <p style={{ fontSize: '11px', color: theme.subText, marginTop: '-6px' }}>*Listings require Admin Approval.</p>
                   
-                  <form onSubmit={(e) => {
-                    e.preventDefault();
-                    const formData = new FormData(e.target);
-                    
-                    fetch('http://localhost:8080/house-backend/add_house.php', {
-                      method: 'POST',
-                      body: formData
-                    })
-                    .then(res => res.json())
-                    .then(data => {
-                      alert(data.message || 'Property published successfully!');
-                      e.target.reset();
-                      fetchHouses();
-                    })
-                    .catch(err => {
-                      console.error('Add House Error:', err);
-                      alert('Property published successfully!');
-                      e.target.reset();
-                      fetchHouses();
-                    });
-                  }}>
+                 <form onSubmit={(e) => {
+  e.preventDefault();
+  const formData = new FormData(e.target);
+  
+  fetch('http://localhost:8080/house-backend/add_house.php', {
+    method: 'POST',
+    body: formData
+  })
+  .then(res => res.json())
+  .then(data => {
+      alert(data.message || 'Property published successfully!');
+      e.target.reset(); // የ HTML ፎርሙን ባዶ ያደርጋል
+      
+      // የ state ዋጋዎችን እዚህ ላይ እናጸዳቸዋለን፦
+      setWoreda('');
+      setKebele('');
+      setPhone('');
+      setDescription('');
+      
+      fetchHouses();
+  })
+  .catch(err => {
+      console.error('Add House Error:', err);
+      alert('Property published successfully!');
+      e.target.reset();
+      
+      setWoreda('');
+      setKebele('');
+      setPhone('');
+      setDescription('');
+      
+      fetchHouses();
+  });
+}}>
                     <div style={{ marginBottom: '12px' }}>
                       <label style={{ fontSize: '13px', fontWeight: '600' }}>Property Title</label>
                       <input type="text" name="title" required style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, marginTop: '4px', boxSizing: 'border-box' }} />
@@ -618,6 +934,56 @@ const handleContactSubmit = (e) => {
                       <label style={{ fontSize: '13px', fontWeight: '600' }}>Upload Images</label>
                       <input type="file" name="images[]" accept="image/*" multiple style={{ width: '100%', marginTop: '6px', fontSize: '12px' }} />
                     </div>
+<div style={{ marginBottom: '16px' }}>
+  <label style={{ fontSize: '13px', fontWeight: '600' }}>Woreda</label>
+  <input 
+    type="text" 
+    name="woreda"
+    placeholder="Woreda" 
+    value={woreda} 
+    onChange={(e) => setWoreda(e.target.value)} 
+    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, marginTop: '4px', boxSizing: 'border-box' }}
+  />
+</div>
+
+<div style={{ marginBottom: '16px' }}>
+  <label style={{ fontSize: '13px', fontWeight: '600' }}>Kebele</label>
+  <input 
+    type="text" 
+    name="kebele"
+    placeholder="Kebele" 
+    value={kebele} 
+    onChange={(e) => setKebele(e.target.value)} 
+    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, marginTop: '4px', boxSizing: 'border-box' }}
+  />
+</div>
+
+<div style={{ marginBottom: '16px' }}>
+  <label style={{ fontSize: '13px', fontWeight: '600' }}>Phone Number</label>
+  <input 
+    type="text" 
+    name="phone"
+    placeholder="Phone Number" 
+    value={phone} 
+    onChange={(e) => setPhone(e.target.value)} 
+    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, marginTop: '4px', boxSizing: 'border-box' }}
+  />
+</div>
+
+<div style={{ marginBottom: '16px' }}>
+  <label style={{ fontSize: '13px', fontWeight: '600' }}>Description</label>
+  <textarea 
+    name="description"
+    placeholder="Description" 
+    value={description} 
+    onChange={(e) => setDescription(e.target.value)} 
+    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, marginTop: '4px', boxSizing: 'border-box' }}
+  />
+</div>
+
+
+
+
                     <button type="submit" style={{ width: '100%', backgroundColor: '#10b981', color: '#fff', padding: '11px', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>
                       Publish Listing
                     </button>
@@ -667,6 +1033,52 @@ const handleContactSubmit = (e) => {
                           </div>
 
                           <div style={{ display: 'flex', gap: '8px' }}>
+                       {user && (user.role === 'admin' || user.role === 'landlord') && (
+                              <button onClick={(e) => openEditModal(house, e)} style={{ flex: 1, backgroundColor: '#f59e0b', color: '#fff', border: 'none', padding: '8px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
+                            Edit
+                          </button>
+
+                            )}
+                            {user && user.role === 'admin' && (
+                              <button onClick={(e) => handleDelete(houseId, title, e)} style={{ flex: 1, backgroundColor: '#fee2e2', color: '#dc2626', border: 'none', padding: '8px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
+                                Delete
+                              </button>
+                            )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+{/* Edit እና Delete ቁልፎች ያሉበት ቦታ ላይ */}
+<button 
+  onClick={() => handleViewDetail(house)} 
+  style={{ 
+    backgroundColor: '#007bff', 
+    color: 'white', 
+    padding: '6px 10px', 
+    border: 'none', 
+    borderRadius: '4px', 
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: '12px',
+    marginLeft: '5px'
+  }}
+>
+  Detail
+</button>
+
+
+<div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                             {user && (user.role === 'admin' || user.role === 'landlord') && (
                               <button onClick={(e) => openEditModal(house, e)} style={{ flex: 1, backgroundColor: '#f59e0b', color: '#fff', border: 'none', padding: '8px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
                                 Edit
@@ -677,6 +1089,29 @@ const handleContactSubmit = (e) => {
                                 Delete
                               </button>
                             )}
+
+                            {/* 👇 የ 💳 Pay ቁልፍ ልክ እዚህ ጋር ይገባል 👇 */}
+                            <button
+                              onClick={(e) => openPaymentModal(house, e)}
+                              style={{
+                                backgroundColor: '#10b981',
+                                color: 'white',
+                                padding: '6px 10px',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontWeight: 'bold',
+                                fontSize: '12px'
+                              }}
+                            >
+                              💳 Pay
+                            </button>
+                          </div>
+
+
+
+
+
                           </div>
                         </div>
                       );
@@ -813,6 +1248,74 @@ const handleContactSubmit = (e) => {
           </div>
         </div>
       )}
+
+
+{/* Tenant Payment Modal */}
+      {paymentModalHouse && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
+          <div style={{ backgroundColor: theme.cardBg, color: theme.text, padding: '26px', borderRadius: '16px', maxWidth: '440px', width: '92%', position: 'relative', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)' }}>
+            <button onClick={() => setPaymentModalHouse(null)} style={{ position: 'absolute', right: '18px', top: '18px', backgroundColor: theme.bg, border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontWeight: 'bold', color: theme.text }}>✕</button>
+            <h3 style={{ marginTop: 0, fontSize: '19px', marginBottom: '10px' }}>💳 Pay Deposit — {paymentModalHouse.title || paymentModalHouse.Title}</h3>
+
+            <div style={{ backgroundColor: theme.bg, padding: '12px', borderRadius: '10px', border: `1px solid ${theme.border}`, marginBottom: '14px', fontSize: '13px' }}>
+              <b>Admin Deposit Accounts:</b><br />
+              🏦 CBE: <code>1000XXXXXXXXX</code> (Woinshet Teshale)<br />
+              📱 Telebirr: <code>09XXXXXXXX</code>
+            </div>
+
+            <form onSubmit={handlePaymentSubmit}>
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ fontSize: '13px', fontWeight: '600' }}>Tenant Full Name</label>
+                <input type="text" value={payTenantName} onChange={(e) => setPayTenantName(e.target.value)} required style={{ width: '100%', padding: '9px', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, marginTop: '4px', boxSizing: 'border-box' }} />
+              </div>
+
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ fontSize: '13px', fontWeight: '600' }}>Email (Optional)</label>
+                <input type="email" value={payTenantEmail} onChange={(e) => setPayTenantEmail(e.target.value)} style={{ width: '100%', padding: '9px', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, marginTop: '4px', boxSizing: 'border-box' }} />
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: '13px', fontWeight: '600' }}>Amount ($)</label>
+                  <input type="number" step="0.01" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} required style={{ width: '100%', padding: '9px', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, marginTop: '4px', boxSizing: 'border-box' }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: '13px', fontWeight: '600' }}>Payment Method</label>
+                  <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)} style={{ width: '100%', padding: '9px', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, marginTop: '4px', boxSizing: 'border-box' }}>
+                    <option value="CBE">CBE</option>
+                    <option value="Telebirr">Telebirr</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ fontSize: '13px', fontWeight: '600' }}>Transaction Reference / FT Code</label>
+                <input type="text" value={payRef} onChange={(e) => setPayRef(e.target.value)} required placeholder="e.g. FT26324..." style={{ width: '100%', padding: '9px', borderRadius: '8px', border: `1px solid ${theme.border}`, backgroundColor: theme.bg, color: theme.text, marginTop: '4px', boxSizing: 'border-box' }} />
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ fontSize: '13px', fontWeight: '600' }}>Receipt Screenshot (Optional)</label>
+                <input type="file" accept="image/*" onChange={(e) => setPayReceiptFile(e.target.files[0] || null)} style={{ width: '100%', marginTop: '4px', fontSize: '12px' }} />
+              </div>
+
+              <button type="submit" style={{ width: '100%', backgroundColor: '#10b981', color: '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+                Submit Payment for Verification
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+
+
+
+
+
+
+
+
+
 
       {/* Auth Modal with Password Show/Hide Feature */}
       {showAuthModal && (
@@ -1008,6 +1511,39 @@ const handleContactSubmit = (e) => {
           </div>
         </div>
       )}
+
+{/* Detail Modal */}
+{selectedHouseDetail && (
+  <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
+    <div style={{ backgroundColor: theme.cardBg, color: theme.text, padding: '28px', borderRadius: '16px', maxWidth: '450px', width: '90%', position: 'relative', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)' }}>
+      
+      <button onClick={() => setSelectedHouseDetail(null)} style={{ position: 'absolute', right: '20px', top: '20px', backgroundColor: theme.bg, border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontWeight: 'bold', color: theme.text }}>✕</button>
+      
+      <h3 style={{ marginTop: 0, fontSize: '20px', marginBottom: '15px' }}>🏠 Property Details</h3>
+      
+      <div style={{ fontSize: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <p><strong>Title:</strong> {selectedHouseDetail.title || selectedHouseDetail.Title || 'N/A'}</p>
+        <p><strong>Location:</strong> {selectedHouseDetail.location || selectedHouseDetail.Location || 'N/A'}</p>
+        <p><strong>Woreda:</strong> {selectedHouseDetail.woreda || selectedHouseDetail.Woreda || 'N/A'}</p>
+        <p><strong>Kebele:</strong> {selectedHouseDetail.kebele || selectedHouseDetail.Kebele || 'N/A'}</p>
+        <p><strong>Price:</strong> ${selectedHouseDetail.price || selectedHouseDetail.Price || 'N/A'} /mo</p>
+        <p><strong>Bedrooms:</strong> {selectedHouseDetail.bedrooms || selectedHouseDetail.Bedrooms || 'N/A'}</p>
+        <p><strong>Phone:</strong> {selectedHouseDetail.phone || selectedHouseDetail.Phone || 'N/A'}</p>
+        
+        <div style={{ marginTop: '10px', padding: '10px', backgroundColor: theme.bg, borderRadius: '8px', border: `1px solid ${theme.border}` }}>
+          <strong>Description:</strong>
+          <p style={{ margin: '5px 0 0', color: theme.subText }}>{selectedHouseDetail.description || selectedHouseDetail.Description || 'No description provided.'}</p>
+        </div>
+      </div>
+
+      <button onClick={() => setSelectedHouseDetail(null)} style={{ width: '100%', marginTop: '20px', backgroundColor: '#ef4444', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+        Close
+      </button>
+    </div>
+  </div>
+)}
+
+
     </div>
   );
 }

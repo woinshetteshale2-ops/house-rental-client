@@ -99,6 +99,26 @@ form {
   animation: marquee 15s linear infinite;
 }
 
+
+.house-card {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}.btn-style {
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.2s ease;
+  border: none;
+  cursor: pointer;
+}body {
+  background-color: #eb2ecc; /* ደበዝ ያለ፣ ለዓይን የሚመች አሽ ቀለም */
+  color: #13d9e7;
+  margin: 0;
+  padding: 0;
+}
+body {
+  background-color: #1f6480; /* ደበዝ ያለ አሽ/ቡጫማ ቀለም */
+}
 @keyframes marquee {
   0% {
     transform: translateX(100%);
